@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Tuple
 
@@ -127,13 +128,24 @@ def cmd_sync(args: argparse.Namespace) -> int:
 
     if args.apply:
         # Apply WireGuard config
-        logging.debug("Applying WireGuard config via wg setconf")
-        run_cmd(["wg", "setconf", cfg.wireguard.interface, cfg.wg_conf_output])
-        logging.info("Applied WireGuard configuration to %s", cfg.wireguard.interface)
+        logging.debug("Applying WireGuard config via wg syncconf")
+        # Use syncconf with wg-quick strip for safer config updates
+        strip_result = run_cmd(["wg-quick", "strip", cfg.wg_conf_output], capture_output=True)
+        
+        # Write stripped config to temporary file and use it with syncconf
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as tmp_file:
+            tmp_file.write(strip_result.stdout)
+            tmp_file_path = tmp_file.name
+        
+        try:
+            run_cmd(["wg", "syncconf", cfg.wireguard.interface, tmp_file_path])
+            logging.info("Applied WireGuard configuration to %s", cfg.wireguard.interface)
+        finally:
+            os.unlink(tmp_file_path)
 
         # Apply nftables config
         logging.debug("Applying nftables config via nft -f")
-        run_cmd(["nft", "-f", cfg.nftables.output_path])
+        run_cmd(["/usr/sbin/nft", "-f", cfg.nftables.output_path])
         logging.info("Applied nftables configuration")
 
     if args.print:
