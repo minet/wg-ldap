@@ -27,6 +27,8 @@ def render_nftables(cfg: AppConfig, peers: Iterable[Peer]) -> str:
     lines: List[str] = []
     if base_content is None:
         # Fallback: generate a base ruleset
+        lines.append("flush ruleset")
+        lines.append("")
         lines.append("table inet filter {")
         lines.append("\tchain input {")
         lines.append("\t\ttype filter hook input priority 0;")
@@ -42,6 +44,8 @@ def render_nftables(cfg: AppConfig, peers: Iterable[Peer]) -> str:
         lines.append("\tchain forward {")
         lines.append("\t\ttype filter hook forward priority 0;")
         lines.append("\t\tpolicy drop;")
+        lines.append("\t\tct state established,related accept")
+        lines.append(f"\t\tip saddr {cfg.wireguard.address} ip daddr {cfg.wireguard.address} accept")
         # Only allow return traffic from interfaces to VPN
         for rule in cfg.nftables.forward_policies:
             iif = rule.get("iif")
