@@ -1,7 +1,20 @@
 [project]
-dependencies = []
+dependencies = [
+  "pydantic>=2.11.10",
+  "python-ldap>=3.4.4",
+  "tomli>=2.2.1",
+]
 description = "Manage Wireguard peers and routes using LDAP as a backend"
 name = "wg-ldap"
 readme = "README.md"
 requires-python = ">=3.10"
 version = "0.1.0"
+
+[project.scripts]
+wg-ldap = "wg_ldap.cli:main"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.18.2",
+  "ruff>=0.13.3",
+]
