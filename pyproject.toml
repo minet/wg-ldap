@@ -1,0 +1,7 @@
+[project]
+dependencies = []
+description = "Manage Wireguard peers and routes using LDAP as a backend"
+name = "wg-ldap"
+readme = "README.md"
+requires-python = ">=3.10"
+version = "0.1.0"
