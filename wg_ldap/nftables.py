@@ -39,6 +39,8 @@ def render_nftables(cfg: AppConfig, peers: Iterable[Peer]) -> str:
             lines.append(f"\t\ttcp dport {port} accept")
         for port in cfg.nftables.input_allow_udp:
             lines.append(f"\t\tudp dport {port} accept")
+        lines.append("\t\ticmp type echo-request accept")
+        lines.append("\t\ticmpv6 type echo-request accept")
         lines.append("\t}")
 
         lines.append("\tchain forward {")
@@ -53,6 +55,8 @@ def render_nftables(cfg: AppConfig, peers: Iterable[Peer]) -> str:
             lines.append(
                 f"\t\tiifname \"{oif}\" oifname \"{iif}\" ct state established,related accept"
             )
+        # Allow everything public
+        lines.append("\t\tip saddr 10.8.0.0/16 ip daddr != 10.0.0.0/8 ip daddr != 172.16.0.0/12 ip daddr != 192.168.0.0/16 accept")
         # VPN to interfaces rules will be added by per-client ACLs only
         lines.append("\t}")
         lines.append("}")
