@@ -55,10 +55,16 @@ class NFTablesConfig(BaseModel):
     )
 
 
+class WebConfig(BaseModel):
+    host: str = "127.0.0.1"
+    port: int = 8080
+
+
 class AppConfig(BaseModel):
     ldap: LDAPConfig
     wireguard: WireGuardConfig = Field(default_factory=WireGuardConfig)
     nftables: NFTablesConfig = Field(default_factory=NFTablesConfig)
+    web: WebConfig = Field(default_factory=WebConfig)
     wg_conf_output: str = "/etc/wireguard/wg0.conf"
     vpn_cidr: str = "10.8.0.0/16"
     state_file: str = "/var/lib/wg-ldap/state.json"
@@ -168,6 +174,13 @@ base_path = "/etc/wg-ldap/nftables.base.conf"
 input_allow_tcp = [22]
 # Liste des ports UDP autorisés en entrée (ce paramètre n'est utilisé que lors de la génération de la config avec gen-nft-base)
 input_allow_udp = [51825]
+
+
+[web]
+# Host/port for the small lookup web server (used by wg-ldap-lookup)
+# Bind to 127.0.0.1 for localhost-only access
+host = "127.0.0.1"
+port = 8080
 
 
 # Routage par groupes
