@@ -10,6 +10,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 version = "0.1.0"
 
+[tool.uv]
+package = true
+
 [project.scripts]
 wg-ldap = "wg_ldap.cli:main"
 wg-ldap-lookup = "wg_ldap.web:serve"
