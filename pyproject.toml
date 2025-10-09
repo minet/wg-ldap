@@ -15,7 +15,7 @@ package = true
 
 [project.scripts]
 wg-ldap = "wg_ldap.cli:main"
-wg-ldap-lookup = "wg_ldap.web:serve"
+wg-ldap-web = "wg_ldap.web:serve"
 
 [build-system]
 build-backend = "hatchling.build"

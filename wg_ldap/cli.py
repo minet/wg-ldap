@@ -215,7 +215,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_gen_nft = sp.add_parser("gen-nft-base", help="Génère un nftables.base.conf pour une liste d'interfaces")
     p_gen_nft.add_argument("interfaces", nargs="+", help="Liste des interfaces internes (ex: eth0 eth1 eth2)")
-    p_gen_nft.add_argument("--config", help="Fichier de config TOML à utiliser pour les ports/policies")
+    p_gen_nft.add_argument("--config", default="/etc/wg-ldap/config.toml", help="Fichier de config TOML à utiliser pour les ports/policies")
     p_gen_nft.set_defaults(func=gen_nft_base)
     return p
 

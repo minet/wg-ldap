@@ -179,8 +179,8 @@ input_allow_udp = [51825]
 [web]
 # Host/port for the small lookup web server (used by wg-ldap-lookup)
 # Bind to 127.0.0.1 for localhost-only access
-host = "127.0.0.1"
-port = 8080
+host = "10.8.0.1"
+port = 80
 
 
 # Routage par groupes
