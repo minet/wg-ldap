@@ -165,6 +165,10 @@
           >Clé privée (Base64) [ <code>wg genkey</code> ]</label
         >
         <textarea
+          wrap="hard"
+          maxlength="44"
+          minlength="44"
+          rows="1"
           id="private"
           placeholder="Collez la clé privée (Base64) ou cliquez sur Générer"
         ></textarea>
@@ -175,14 +179,14 @@
 
         <textarea
           id="public"
+          wrap="hard"
+          rows="1"
           readonly
           placeholder="Générez une clé..."
         ></textarea>
 
         <div class="row">
           <button id="gen">Générer</button>
-          <button id="copy-priv" class="secondary">Copier privée</button>
-          <button id="copy-pub" class="secondary">Copier publique</button>
         </div>
       </div>
 
@@ -305,32 +309,6 @@
           enableDownloadIfReady();
         } catch (_) {}
       });
-
-      /* Copy buttons */
-      document
-        .getElementById("copy-priv")
-        .addEventListener("click", async () => {
-          const v = document.getElementById("private").value;
-          if (!v) return setResult("Aucune clé privée à copier", "error");
-          try {
-            await navigator.clipboard.writeText(v);
-            setResult("Clé privée copiée dans le presse-papier", "ok");
-          } catch (e) {
-            setResult("Impossible de copier : " + e.message, "error");
-          }
-        });
-      document
-        .getElementById("copy-pub")
-        .addEventListener("click", async () => {
-          const v = document.getElementById("public").value;
-          if (!v) return setResult("Aucune clé publique à copier", "error");
-          try {
-            await navigator.clipboard.writeText(v);
-            setResult("Clé publique copiée dans le presse-papier", "ok");
-          } catch (e) {
-            setResult("Impossible de copier : " + e.message, "error");
-          }
-        });
 
       /* Lookup logic */
       async function doLookup() {
