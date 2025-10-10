@@ -64,8 +64,8 @@
         color: var(--muted);
         margin: 10px 0 6px;
       }
-      textarea,
-      input[type="text"] {
+      input[type="text"],
+      input[type="password"] {
         width: 100%;
         padding: 10px;
         border-radius: 8px;
@@ -74,10 +74,7 @@
         color: inherit;
         font-family: monospace;
       }
-      textarea {
-        height: 84px;
-        resize: vertical;
-      }
+
       .row {
         display: flex;
         gap: 8px;
@@ -164,26 +161,25 @@
         <label for="private"
           >Clé privée (Base64) [ <code>wg genkey</code> ]</label
         >
-        <textarea
-          wrap="hard"
+        <input
+          type="password"
           maxlength="44"
           minlength="44"
-          rows="1"
           id="private"
           placeholder="Collez la clé privée (Base64) ou cliquez sur Générer"
-        ></textarea>
+        />
 
         <label for="public"
           >Clé publique (Base64) [ <code>wg pubkey</code> ]</label
         >
 
-        <textarea
+        <input
           id="public"
-          wrap="hard"
-          rows="1"
+          type="text"
           readonly
+          value=""
           placeholder="Générez une clé..."
-        ></textarea>
+        />
 
         <div class="row">
           <button id="gen">Générer</button>
