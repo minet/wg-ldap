@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import argparse
+import base64
+import codecs
 import logging
 import json
-import base64
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import unquote
 from pathlib import Path
 from typing import Optional
 
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from cryptography.hazmat.primitives import serialization
 from .config import load_config, AppConfig
 
 log = logging.getLogger(__name__)
@@ -16,12 +20,27 @@ log = logging.getLogger(__name__)
 def pubkey(config: AppConfig) -> str:
     if hasattr(pubkey, "_cached"):
         return pubkey._cached  # type: ignore
-    import nacl.signing
-    import nacl.encoding
+    
+    
     with open(config.wireguard.private_key_path, 'r') as f:
-        priv = f.read().strip()
-    priv = base64.b64decode(priv.encode())
-    setattr(pubkey, "_cached", nacl.signing.SigningKey(priv).verify_key.encode(encoder=nacl.encoding.Base64Encoder).decode())
+        priv_b64 = f.read().strip()
+    
+    # Decode the base64 private key
+    priv_bytes = base64.b64decode(priv_b64)
+    
+    # Load the private key
+    private_key = X25519PrivateKey.from_private_bytes(priv_bytes)
+    
+    # Derive public key
+    pubkey_bytes = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw, 
+        format=serialization.PublicFormat.Raw
+    )
+    
+    # Encode to base64
+    pub = codecs.encode(pubkey_bytes, 'base64').decode('utf8').strip()
+    
+    setattr(pubkey, "_cached", pub)
     return pubkey._cached  # type: ignore
 
 
@@ -95,11 +114,21 @@ class LookupHandler(BaseHTTPRequestHandler):
         self.wfile.write(ip.encode("utf-8"))
 
 
-def serve(config_path: str = "/etc/wg-ldap/config.toml", host: str | None = None, port: int | None = None) -> None:
-    cfg = load_config(Path(config_path))
-    # Use config.web values when host/port not explicitly provided
-    host = host if host is not None else cfg.web.host
-    port = port if port is not None else cfg.web.port
+def serve() -> None:
+    
+    parser = argparse.ArgumentParser(description="Start the WireGuard LDAP lookup server")
+    parser.add_argument("--config", type=str, help="Path to config file", default="/etc/wg-ldap/config.toml")
+    parser.add_argument("--host", type=str, help="Host to bind to")
+    parser.add_argument("--port", type=int, help="Port to bind to")
+    
+    args = parser.parse_args()
+
+    cfg = load_config(Path(args.config))
+
+    # Use config.web values as defaults when host/port not explicitly provided
+    host = args.host if args.host is not None else cfg.web.host
+    port = args.port if args.port is not None else cfg.web.port
+    
     # Attach config to handler class so instances can access it
     LookupHandler.config = cfg
     server = ThreadingHTTPServer((host, port), LookupHandler)
