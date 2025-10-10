@@ -52,6 +52,7 @@ def routes(config: AppConfig) -> str:
     all_cidrs = set()
     for group_cidrs in config.per_group_routes.values():
         all_cidrs.update(group_cidrs)
+    all_cidrs.add(config.vpn_cidr)
     setattr(routes, "_cached", ",".join(sorted(all_cidrs)))  # type: ignore
     return routes._cached  # type: ignore
 
