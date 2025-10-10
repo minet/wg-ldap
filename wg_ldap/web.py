@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import json
+import base64
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import unquote
 from pathlib import Path
@@ -19,7 +20,7 @@ def pubkey(config: AppConfig) -> str:
     import nacl.encoding
     with open(config.wireguard.private_key_path, 'r') as f:
         priv = f.read().strip()
-    priv = priv.encode()
+    priv = base64.b64decode(priv.encode())
     setattr(pubkey, "_cached", nacl.signing.SigningKey(priv).verify_key.encode(encoder=nacl.encoding.Base64Encoder).decode())
     return pubkey._cached  # type: ignore
 
@@ -54,8 +55,8 @@ class LookupHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
-        content = content.replace("{{WG_LDAP_SERVER_PORT}}", str(self.config.web.external_vpn_ip)) \
-                         .replace("{{WG_LDAP_SERVER_HOST}}", str(self.config.wireguard.port)) \
+        content = content.replace("{{WG_LDAP_SERVER_HOST}}", str(self.config.web.external_vpn_ip)) \
+                         .replace("{{WG_LDAP_SERVER_PORT}}", str(self.config.wireguard.port)) \
                          .replace("{{WG_LDAP_PUBKEY}}", pubkey(self.config)) \
                          .replace("{{WG_LDAP_ROUTES}}", routes(self.config))
         self.wfile.write(content.encode("utf-8"))
