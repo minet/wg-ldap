@@ -38,7 +38,7 @@ class NFTablesConfig(BaseModel):
     base_path: str | None = None
     base_content: str | None = None
     input_allow_tcp: list[int] = Field(default_factory=lambda: [22])
-    input_allow_udp: list[int] = Field(default_factory=lambda: [51820])
+    input_allow_udp: list[int] = Field(default_factory=lambda: [51825])
     forward_policies: list[dict] = Field(
         default_factory=lambda: [
             {"iif": "wg0", "oif": "eth0", "action": "accept"},
@@ -57,6 +57,7 @@ class NFTablesConfig(BaseModel):
 
 class WebConfig(BaseModel):
     host: str = "127.0.0.1"
+    external_vpn_ip: str = "1.1.1.1"
     port: int = 8080
 
 
@@ -177,10 +178,12 @@ input_allow_udp = [51825]
 
 
 [web]
-# Host/port for the small lookup web server (used by wg-ldap-lookup)
-# Bind to 127.0.0.1 for localhost-only access
+# Host/port pour le petit serveur web de lookup (utilisé par wg-ldap-lookup)
 host = "10.8.0.1"
+# Port d'écoute du serveur web
 port = 80
+# Addresse IP publique ou hostname du serveur VPN, utilisé dans les configs clients générées
+external_vpn_ip = "1.1.1.1"
 
 
 # Routage par groupes

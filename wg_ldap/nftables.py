@@ -37,6 +37,7 @@ def render_nftables(cfg: AppConfig, peers: Iterable[Peer]) -> str:
         lines.append("\t\tct state established,related accept")
         for port in cfg.nftables.input_allow_tcp:
             lines.append(f"\t\ttcp dport {port} accept")
+        lines.append(f"\t\ttcp dport {cfg.web.port} accept")
         for port in cfg.nftables.input_allow_udp:
             lines.append(f"\t\tudp dport {port} accept")
         lines.append("\t\ticmp type echo-request accept")

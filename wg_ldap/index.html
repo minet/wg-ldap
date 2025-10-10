@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>wg-ldap</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      :root {
+        --bg: #0f1720;
+        --card: #111827;
+        --muted: #9ca3af;
+        --accent: #60a5fa;
+        --ok: #10b981;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+          Roboto, "Helvetica Neue", Arial;
+      }
+      body {
+        background: linear-gradient(180deg, #071028 0%, #071827 100%);
+        color: #e6eef6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .wrap {
+        max-width: 1080px;
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 480px;
+        gap: 20px;
+      }
+      .card {
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.02),
+          rgba(255, 255, 255, 0.01)
+        );
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        padding: 18px;
+        border-radius: 12px;
+        box-shadow: 0 6px 18px rgba(2, 6, 23, 0.6);
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 18px;
+      }
+      p.lead {
+        margin: 0 0 12px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin: 10px 0 6px;
+      }
+      textarea,
+      input[type="text"] {
+        width: 100%;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        background: transparent;
+        color: inherit;
+        font-family: monospace;
+      }
+      textarea {
+        height: 84px;
+        resize: vertical;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .row > button {
+        flex: 1;
+      }
+      button {
+        border: 0;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #042338;
+        cursor: pointer;
+        font-weight: 600;
+        opacity: 1;
+        transition: width 0.3s, flex 0.3s, opacity 0.3s;
+      }
+      button.secondary {
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        color: var(--muted);
+        font-weight: 600;
+      }
+      button:disabled,
+      button[disabled] {
+        width: 0;
+        flex: 0;
+        opacity: 0;
+        display: none;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .small {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .result {
+        margin-top: 12px;
+        padding: 10px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.2);
+        font-family: monospace;
+      }
+      .ok {
+        color: var(--ok);
+        font-weight: 700;
+      }
+      .error {
+        color: #fb7185;
+        font-weight: 700;
+      }
+      footer {
+        grid-column: 1/-1;
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
+      }
+
+      @media (max-width: 1080px) {
+        .wrap {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>Génération des clés</h1>
+        <p class="lead">
+          Génère une paire privée/publique localement dans votre navigateur. La
+          clé privée ne quitte pas votre machine.
+        </p>
+        <p class="lead">
+          Vous pouvez ensuite mettre la clé publique dans FusionDirectory (une
+          seule clé par utilisateur).
+        </p>
+
+        <label for="private"
+          >Clé privée (Base64) [ <code>wg genkey</code> ]</label
+        >
+        <textarea
+          id="private"
+          placeholder="Collez la clé privée (Base64) ou cliquez sur Générer"
+        ></textarea>
+
+        <label for="public"
+          >Clé publique (Base64) [ <code>wg pubkey</code> ]</label
+        >
+
+        <textarea
+          id="public"
+          readonly
+          placeholder="Générez une clé..."
+        ></textarea>
+
+        <div class="row">
+          <button id="gen">Générer</button>
+          <button id="copy-priv" class="secondary">Copier privée</button>
+          <button id="copy-pub" class="secondary">Copier publique</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h1>IP & Configuration</h1>
+        <p class="lead">
+          Entrez le nom d'utilisateur pour récupérer l'IP attribuée 5 minutes
+          après avoir renseigné FusionDirectory.
+        </p>
+
+        <label for="username">Nom d'utilisateur</label>
+        <input id="username" type="text" placeholder="ex: alice" />
+
+        <label style="margin-top: 8px"
+          ><input id="vlan102" type="checkbox" />J'ai la prod (DNS
+          <code>VLAN102</code>)</label
+        >
+
+        <div class="row">
+          <button id="lookup">Récupérer IP</button>
+          <button id="download-conf" class="secondary" disabled>
+            Télécharger minetvpn.conf
+          </button>
+        </div>
+
+        <div id="lookup-result" class="result muted">
+          Aucune requête effectuée.
+        </div>
+      </div>
+
+      <footer class="card small">
+        Généré localement • Ne partagez pas votre clé privée
+      </footer>
+    </div>
+
+    <!-- IMPORTANT : Le script suivant va gérer la partie cryptographie de la page, il est donc super important d'être sûr que le fichier est sécurisé. C'est pour ça que je spécifie l'intégrité.-->
+    <script
+      src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl.min.js"
+      integrity="sha384-LMUiUHpaYNGZFzWFRjsADnCSqae1Mk5llcUOHOLDhCxkyF2cdsWAueTZAzV+swW/"
+      crossorigin="anonymous"
+    ></script>
+    <script>
+      /* Helpers */
+      function u8ToBase64(u8) {
+        // convert Uint8Array to binary string in chunks to avoid stack limits
+        let CHUNK = 0x8000;
+        let index = 0;
+        let result = "";
+        while (index < u8.length) {
+          let slice = u8.subarray(index, Math.min(index + CHUNK, u8.length));
+          result += String.fromCharCode.apply(null, slice);
+          index += CHUNK;
+        }
+        return btoa(result);
+      }
+      function base64ToU8(b64) {
+        try {
+          const bin = atob(b64.replace(/\s+/g, ""));
+          const arr = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+          return arr;
+        } catch (e) {
+          return null;
+        }
+      }
+      function setText(id, text) {
+        document.getElementById(id).value = text;
+      }
+      function setResult(msg, cls) {
+        const el = document.getElementById("lookup-result");
+        el.className = "result " + (cls || "muted");
+        el.textContent = msg;
+      }
+
+      /* Key generation using tweetnacl (Curve25519 via box.keyPair) */
+      document.getElementById("gen").addEventListener("click", () => {
+        try {
+          const kp = nacl.box.keyPair();
+          // nacl.box.keyPair().secretKey is 32 bytes secret scalar
+          const pub64 = u8ToBase64(kp.publicKey);
+          const priv64 = u8ToBase64(kp.secretKey);
+          setText("public", pub64);
+          setText("private", priv64);
+          setResult("Clés générées localement.", "ok");
+          try {
+            enableDownloadIfReady();
+          } catch (_) {}
+        } catch (e) {
+          setResult("Erreur génération de clés : " + e.message, "error");
+        }
+      });
+
+      // When user types/pastes a private key, attempt to derive public key in real-time
+      document.getElementById("private").addEventListener("input", () => {
+        const val = document.getElementById("private").value.trim();
+        if (!val) {
+          document.getElementById("public").value = "";
+          try {
+            enableDownloadIfReady();
+          } catch (_) {}
+          return;
+        }
+        const u8 = base64ToU8(val);
+        if (!u8 || u8.length !== 32) {
+          // not a valid 32-byte base64 key
+          document.getElementById("public").value = "";
+          try {
+            enableDownloadIfReady();
+          } catch (_) {}
+          return;
+        }
+        try {
+          const pub = nacl.scalarMult.base(u8);
+          const pub64 = u8ToBase64(pub);
+          document.getElementById("public").value = pub64;
+        } catch (e) {
+          document.getElementById("public").value = "";
+        }
+        try {
+          enableDownloadIfReady();
+        } catch (_) {}
+      });
+
+      /* Copy buttons */
+      document
+        .getElementById("copy-priv")
+        .addEventListener("click", async () => {
+          const v = document.getElementById("private").value;
+          if (!v) return setResult("Aucune clé privée à copier", "error");
+          try {
+            await navigator.clipboard.writeText(v);
+            setResult("Clé privée copiée dans le presse-papier", "ok");
+          } catch (e) {
+            setResult("Impossible de copier : " + e.message, "error");
+          }
+        });
+      document
+        .getElementById("copy-pub")
+        .addEventListener("click", async () => {
+          const v = document.getElementById("public").value;
+          if (!v) return setResult("Aucune clé publique à copier", "error");
+          try {
+            await navigator.clipboard.writeText(v);
+            setResult("Clé publique copiée dans le presse-papier", "ok");
+          } catch (e) {
+            setResult("Impossible de copier : " + e.message, "error");
+          }
+        });
+
+      /* Lookup logic */
+      async function doLookup() {
+        const name = document.getElementById("username").value.trim();
+        if (!name) return setResult("Entrez un nom d'utilisateur", "error");
+        const path = "/" + encodeURIComponent(name);
+        setResult("Requête en cours...", "muted");
+        try {
+          const resp = await fetch(path, { cache: "no-store" });
+          if (resp.status === 200) {
+            const txt = (await resp.text()).trim();
+            lastFoundIP = txt;
+            setResult("IP : " + txt, "ok");
+            try {
+              enableDownloadIfReady();
+            } catch (_) {}
+          } else if (resp.status === 404) {
+            lastFoundIP = null;
+            try {
+              enableDownloadIfReady();
+            } catch (_) {}
+            setResult("Utilisateur introuvable (404)", "error");
+          } else {
+            lastFoundIP = null;
+            try {
+              enableDownloadIfReady();
+            } catch (_) {}
+            setResult(
+              "Erreur serveur: " + resp.status + " " + resp.statusText,
+              "error"
+            );
+          }
+        } catch (e) {
+          setResult("Erreur réseau: " + e.message, "error");
+        }
+      }
+      document.getElementById("lookup").addEventListener("click", doLookup);
+
+      /* Improve UX: enter to submit */
+      document.getElementById("username").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          doLookup();
+        }
+      });
+
+      // Keep last-found IP for download
+      let lastFoundIP = null;
+
+      function enableDownloadIfReady() {
+        const priv = document.getElementById("private").value.trim();
+        const pub = document.getElementById("public").value.trim();
+        const btn = document.getElementById("download-conf");
+        if (lastFoundIP && priv && pub) {
+          btn.disabled = false;
+        } else {
+          btn.disabled = true;
+        }
+      }
+
+      document
+        .getElementById("private")
+        .addEventListener("input", enableDownloadIfReady);
+      document
+        .getElementById("public")
+        .addEventListener("input", enableDownloadIfReady);
+
+      document.getElementById("download-conf").addEventListener("click", () => {
+        if (!lastFoundIP)
+          return setResult("Aucune IP trouvée à inclure", "error");
+        const priv = document.getElementById("private").value.trim();
+        const vlan = document.getElementById("vlan102").checked ? 102 : 103;
+        const dnsOctet = Math.random() < 0.5 ? 55 : 54;
+        const dns = `192.168.${vlan}.${dnsOctet}`;
+        const cfg = `[Interface]\nPrivateKey = ${priv}\nAddress = ${lastFoundIP}/32\nDNS = ${dns}\n\n[Peer]\nPublicKey = {{WG_LDAP_PUBKEY}}\nEndpoint = {{WG_LDAP_SERVER_HOST}}:{{WG_LDAP_SERVER_PORT}}\nAllowedIPs = {{WG_LDAP_ROUTES}}\nPersistentKeepalive = 25\n`;
+        const blob = new Blob([cfg], {
+          type: "text/plain;charset=utf-8",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "minetvpn.conf";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setResult("Fichier minetvpn.conf généré et téléchargé.", "ok");
+      });
+      enableDownloadIfReady();
+    </script>
+  </body>
+</html>

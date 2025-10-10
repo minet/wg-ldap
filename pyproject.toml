@@ -1,6 +1,7 @@
 [project]
 dependencies = [
   "pydantic>=2.11.10",
+  "pynacl>=1.6.0",
   "python-ldap>=3.4.4",
   "tomli>=2.2.1",
 ]
