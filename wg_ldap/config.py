@@ -70,6 +70,7 @@ class AppConfig(BaseModel):
     vpn_cidr: str = "10.8.0.0/16"
     state_file: str = "/var/lib/wg-ldap/state.json"
     per_group_routes: dict[str, list[str]] = Field(default_factory=dict)
+    per_group_dns: dict[str, str] = Field(default_factory=dict)
 
     def vpn_network(self) -> IPv4Network:
         return IPv4Network(self.vpn_cidr)
@@ -191,6 +192,14 @@ external_vpn_ip = "1.1.1.1"
 # Typiquement le DN complet du groupe LDAP comme clé, et une liste de CIDR autorisés comme valeur
 "cn=cluster-dev,ou=groups,dc=minet,dc=net" = ["192.168.103.0/24"]
 "cn=cluster-prod,ou=groups,dc=minet,dc=net" = ["192.168.102.0/24", "10.8.0.0/16"]
+
+# DNS par groupes
+[per_group_dns]
+# Typiquement le DN complet du groupe LDAP comme clé, et l'adresse IP du serveur DNS comme valeur
+# Les requêtes DNS arrivant sur 10.8.0.1 (wireguard.address) seront redirigées vers le DNS du dernier groupe qui match
+"*" = "8.8.8.8"
+"cn=cluster-dev,ou=groups,dc=minet,dc=net" = "192.168.103.55"
+"cn=cluster-prod,ou=groups,dc=minet,dc=net" = "192.168.102.55"
 """
 
 

@@ -64,6 +64,9 @@ def render_nftables(cfg: AppConfig, peers: Iterable[Peer]) -> str:
 
         lines.append("")
         lines.append("table ip nat {")
+        lines.append("\tchain prerouting {")
+        lines.append("\t\ttype nat hook prerouting priority -100;")
+        lines.append("\t}")
         lines.append("\tchain postrouting {")
         lines.append("\t\ttype nat hook postrouting priority 100;")
         for nat in cfg.nftables.nat_postrouting:
@@ -79,21 +82,50 @@ def render_nftables(cfg: AppConfig, peers: Iterable[Peer]) -> str:
 
     # Per-client ACLs by source address and target routes
     per_client_lines: List[str] = []
+    per_client_dns_lines: List[str] = []
+    
+    # Extract WireGuard server address (without CIDR)
+    wg_address = cfg.wireguard.address.split('/')[0]
+    
     for peer in peers:
         routes = []
-        # Add group routes
+        target_dns = cfg.per_group_dns.get("*", None)  # Default DNS if any
+        target_dns_index = -1
+        
+        # Add group routes and find DNS server
         for g in peer.groups:
             routes.extend(cfg.per_group_routes.get(g, []))
+            # Get DNS server for this group (last matching wins)
+            if g in cfg.per_group_dns and (index := list(cfg.per_group_dns).index(g)) >= target_dns_index:
+                target_dns = cfg.per_group_dns[g]
+                target_dns_index = index
+
         routes = _unique(routes)
         for route in routes:
             per_client_lines.append(
                 f"add rule inet filter forward ip saddr {peer.address} ip daddr {route} accept"
+            )
+        
+        # DNS redirection: use the last matching DNS server
+        if target_dns:
+            # DNAT for UDP DNS queries
+            per_client_dns_lines.append(
+                f"add rule ip nat prerouting ip saddr {peer.address} ip daddr {wg_address} udp dport 53 dnat to {target_dns}"
+            )
+            # DNAT for TCP DNS queries
+            per_client_dns_lines.append(
+                f"add rule ip nat prerouting ip saddr {peer.address} ip daddr {wg_address} tcp dport 53 dnat to {target_dns}"
             )
 
     if per_client_lines:
         lines.append("")
         lines.append("# Per-client ACLs")
         lines.extend(per_client_lines)
+    
+    if per_client_dns_lines:
+        lines.append("")
+        lines.append("# Per-client DNS redirections")
+        lines.extend(per_client_dns_lines)
 
     if base_content is None:
         log.debug(
