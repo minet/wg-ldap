@@ -17,12 +17,12 @@ from .config import load_config, AppConfig
 log = logging.getLogger(__name__)
 
 
-def pubkey(config: AppConfig) -> str:
+def pubkey(cfg: AppConfig) -> str:
     if hasattr(pubkey, "_cached"):
         return pubkey._cached  # type: ignore
     
     
-    with open(config.wireguard.private_key_path, 'r') as f:
+    with open(cfg.wireguard.private_key_path, 'r') as f:
         priv_b64 = f.read().strip()
     
     # Decode the base64 private key
@@ -44,23 +44,23 @@ def pubkey(config: AppConfig) -> str:
     return pubkey._cached  # type: ignore
 
 
-def routes(config: AppConfig) -> str:
+def routes(cfg: AppConfig) -> str:
     """Generate a comma-separated list of CIDRs for the AllowedIPs field."""
     if hasattr(routes, "_cached"):
         return routes._cached  # type: ignore
     # Collect all unique CIDRs from per_group_routes
     all_cidrs = set()
-    for group_cidrs in config.per_group_routes.values():
+    for group_cidrs in cfg.per_group_routes.values():
         all_cidrs.update(group_cidrs)
-    all_cidrs.add(config.vpn_cidr)
+    all_cidrs.add(cfg.vpn_network().with_prefixlen)
     setattr(routes, "_cached", ",".join(sorted(all_cidrs)))  # type: ignore
     return routes._cached  # type: ignore
 
 class LookupHandler(BaseHTTPRequestHandler):
-    config: Optional[AppConfig] = None
+    cfg: Optional[AppConfig] = None
 
     def _serve_index(self) -> None:
-        assert self.config is not None
+        assert self.cfg is not None
         # index.html is rigth next to this script
         index_path = Path(__file__).parent / "index.html"
         if not index_path.exists():
@@ -76,18 +76,18 @@ class LookupHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
 
-        wireguard_ip = self.config.wireguard.address.split('/')[0]
-        content = content.replace("{{WG_LDAP_SERVER_HOST}}", str(self.config.web.external_vpn_ip)) \
-                         .replace("{{WG_LDAP_SERVER_PORT}}", str(self.config.wireguard.port)) \
-                         .replace("{{WG_LDAP_PUBKEY}}", pubkey(self.config)) \
-                         .replace("{{WG_LDAP_ROUTES}}", routes(self.config)) \
+        wireguard_ip = self.cfg.wireguard.address.split('/')[0]
+        content = content.replace("{{WG_LDAP_SERVER_HOST}}", str(self.cfg.web.external_vpn_ip)) \
+                         .replace("{{WG_LDAP_SERVER_PORT}}", str(self.cfg.wireguard.port)) \
+                         .replace("{{WG_LDAP_PUBKEY}}", pubkey(self.cfg)) \
+                         .replace("{{WG_LDAP_ROUTES}}", routes(self.cfg)) \
                          .replace("{{WG_LDAP_DNS}}", wireguard_ip)
         self.wfile.write(content.encode("utf-8"))
         return
     
 
     def do_GET(self) -> None:
-        assert self.config is not None
+        assert self.cfg is not None
         # path expected: /valid_username
         path = unquote(self.path)
         if not path.startswith("/"):
@@ -97,7 +97,7 @@ class LookupHandler(BaseHTTPRequestHandler):
         if not username:
             self._serve_index()
             return
-        state_path = Path(self.config.state_file)
+        state_path = Path(self.cfg.web.state_file)
         if not state_path.exists():
             self.send_error(500, "State file missing")
             return
@@ -134,7 +134,7 @@ def serve() -> None:
     port = args.port if args.port is not None else cfg.web.port
     
     # Attach config to handler class so instances can access it
-    LookupHandler.config = cfg
+    LookupHandler.cfg = cfg
     server = ThreadingHTTPServer((host, port), LookupHandler)
     log.info("Starting lookup server on %s:%d", host, port)
     try:

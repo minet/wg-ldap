@@ -31,7 +31,7 @@ def gen_nft_base(args: argparse.Namespace) -> int:
         return 1
     # Build forward policies and nat rules for each interface
     forward_policies = [{"iif": "wg0", "oif": nic} for nic in nics]
-    nat_postrouting = [{"oif": nic, "saddr": cfg.vpn_cidr, "action": "masquerade"} for nic in nics]
+    nat_postrouting = [{"oif": nic, "saddr": cfg.vpn_network().network_address, "action": "masquerade"} for nic in nics]
     # Compose a dummy NFTablesConfig for base rendering
     nft_cfg = cfg.nftables.model_copy(update={
         "forward_policies": forward_policies,
@@ -72,7 +72,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 def _load_all(config_path: Path) -> Tuple[AppConfig, LDAPClient, IPAM]:
     cfg = load_config(config_path)
     ldap_client = LDAPClient(cfg.ldap)
-    ipam = IPAM(cfg.state_file, cfg.vpn_cidr)
+    ipam = IPAM(cfg.web.state_file, cfg.wireguard.address)
     return cfg, ldap_client, ipam
 
 
@@ -88,9 +88,9 @@ def cmd_sync(args: argparse.Namespace) -> int:
     logging.debug("Starting sync with config: %s", args.config)
     cfg, ldap_client, ipam = _load_all(Path(args.config).expanduser())
     logging.debug(
-        "Effective paths: wg_conf_output=%s state_file=%s nft_output=%s", 
-        cfg.wg_conf_output,
-        cfg.state_file,
+        "Effective paths: wireguard.config_output_path=%s web.state_file=%s nftables.output_path=%s",
+        cfg.wireguard.config_output_path,
+        cfg.web.state_file,
         cfg.nftables.output_path,
     )
 
@@ -111,12 +111,12 @@ def cmd_sync(args: argparse.Namespace) -> int:
     nft_conf = render_nftables(cfg, peers)
 
     # Write files only if changed
-    logging.debug("Writing WireGuard config to %s", cfg.wg_conf_output)
-    wg_changed = _write_if_changed(cfg.wg_conf_output, wg_conf)
+    logging.debug("Writing WireGuard config to %s", cfg.wireguard.config_output_path)
+    wg_changed = _write_if_changed(cfg.wireguard.config_output_path, wg_conf)
     if wg_changed:
-        logging.info("Wrote WireGuard config to %s (changed)", cfg.wg_conf_output)
+        logging.info("Wrote WireGuard config to %s (changed)", cfg.wireguard.config_output_path)
     else:
-        logging.info("WireGuard config unchanged at %s", cfg.wg_conf_output)
+        logging.info("WireGuard config unchanged at %s", cfg.wireguard.config_output_path)
 
     nft_changed = False
     logging.debug("Writing nftables config to %s", cfg.nftables.output_path)
@@ -130,7 +130,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
         # Apply WireGuard config
         logging.debug("Applying WireGuard config via wg syncconf")
         # Use syncconf with wg-quick strip for safer config updates
-        strip_result = run_cmd(["wg-quick", "strip", cfg.wg_conf_output], capture_output=True)
+        strip_result = run_cmd(["wg-quick", "strip", cfg.wireguard.config_output_path], capture_output=True)
         
         # Write stripped config to temporary file and use it with syncconf
         with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as tmp_file:
@@ -169,7 +169,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
     nft_conf = render_nftables(cfg, peers)
     if args.output:
         logging.debug("Writing outputs to configured paths")
-        atomic_write(cfg.wg_conf_output, wg_conf)
+        atomic_write(cfg.wireguard.config_output_path, wg_conf)
         atomic_write(cfg.nftables.output_path, nft_conf)
     print(wg_conf)
     print("\n# --- nftables ---\n")

@@ -24,9 +24,9 @@ class Peer:
 
 
 class IPAM:
-    def __init__(self, state_file: str, vpn_cidr: str) -> None:
+    def __init__(self, state_file: str, vpn_address: str) -> None:
         self.path = Path(state_file)
-        self.network: IPv4Network = IPv4Network(vpn_cidr)
+        self.network: IPv4Network = IPv4Network(vpn_address, strict=False)
         self.state: Dict[str, str] = {}
         self._load()
         logging.getLogger(__name__).debug(

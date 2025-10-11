@@ -27,9 +27,10 @@ class WireGuardConfig(BaseModel):
     interface: str = "wg0"
     private_key_path: str = "/etc/wireguard/server_private.key"
     address: str = "10.8.0.1/16"
-    port: int = 51820
+    port: int = 51825
     mtu: int | None = None
     table: str | int | None = None
+    config_output_path: str = "/etc/wireguard/wg0.conf"
     peers_base_allowed_ips: list[str] = Field(default_factory=list)
 
 
@@ -38,7 +39,7 @@ class NFTablesConfig(BaseModel):
     base_path: str | None = None
     base_content: str | None = None
     input_allow_tcp: list[int] = Field(default_factory=lambda: [22])
-    input_allow_udp: list[int] = Field(default_factory=lambda: [51825])
+    input_allow_udp: list[int] = Field(default_factory=lambda: [WireGuardConfig.port])
     forward_policies: list[dict] = Field(default_factory=list)
     nat_postrouting: list[dict] = Field(default_factory=list)
 
@@ -47,6 +48,8 @@ class WebConfig(BaseModel):
     host: str = "127.0.0.1"
     external_vpn_ip: str = "1.1.1.1"
     port: int = 8080
+    state_file: str = "/var/lib/wg-ldap/state.json"
+
 
 
 class AppConfig(BaseModel):
@@ -54,14 +57,11 @@ class AppConfig(BaseModel):
     wireguard: WireGuardConfig = Field(default_factory=WireGuardConfig)
     nftables: NFTablesConfig = Field(default_factory=NFTablesConfig)
     web: WebConfig = Field(default_factory=WebConfig)
-    wg_conf_output: str = "/etc/wireguard/wg0.conf"
-    vpn_cidr: str = "10.8.0.0/16"
-    state_file: str = "/var/lib/wg-ldap/state.json"
     per_group_routes: dict[str, list[str]] = Field(default_factory=dict)
     per_group_dns: dict[str, list[str]] = Field(default_factory=dict)
 
     def vpn_network(self) -> IPv4Network:
-        return IPv4Network(self.vpn_cidr)
+        return IPv4Network(self.wireguard.address, strict=False) # Allow bits set in host part
 
 
 def _read_toml(path: Path) -> Mapping:
@@ -91,29 +91,6 @@ def load_config(path: Path) -> AppConfig:
                     "nftables.base_path points to missing file: %s; will fall back to generated base",
                     cfg.nftables.base_path,
                 )
-        # Fallback: some users may place top-level keys under [nftables] inadvertently.
-        nft_raw = data.get("nftables", {}) if isinstance(data, dict) else {}
-        def _maybe_override(field: str) -> None:
-            if field not in data and field in nft_raw:
-                old = getattr(cfg, field)
-                new = nft_raw[field]
-                setattr(cfg, field, new)
-                log.warning(
-                    "Config key '%s' found under [nftables]; overriding default (%s) with %s. "
-                    "Move '%s' to top-level to avoid this warning.",
-                    field,
-                    old,
-                    new,
-                    field,
-                )
-        for key in ("wg_conf_output", "vpn_cidr", "state_file"):
-            _maybe_override(key)
-        log.debug(
-            "Validated config: interface=%s wg_conf_output=%s vpn_cidr=%s",
-            cfg.wireguard.interface,
-            cfg.wg_conf_output,
-            cfg.vpn_cidr,
-        )
         return cfg
     except FileNotFoundError as e:
         raise SystemExit(f"Config file not found: {path}") from e
@@ -123,14 +100,6 @@ def load_config(path: Path) -> AppConfig:
 
 EXAMPLE_CONFIG = """
 # wg-ldap configuration
-
-# Fichier de sortie de la configuration WireGuard
-wg_conf_output = "/etc/wireguard/wg0.conf"
-# CIDR du VPN WireGuard
-vpn_cidr = "10.8.0.0/16"
-# Fichier d'état pour savoir quelles IP ont été attribuées
-state_file = "/var/lib/wg-ldap/ips.json"
-
 
 [ldap]
 url = "ldap://ldap.example.com"
@@ -154,6 +123,8 @@ private_key_path = "/etc/wireguard/server_private.key"
 address = "10.8.0.1/16"
 # Port UDP d'écoute de WireGuard
 port = 51825
+# Chemin vers le fichier de configuration WireGuard qui sera générée à chaque exécution de wg-ldap (doit être accessible en lecture/écriture par l'utilisateur exécutant wg-ldap)
+config_output_path = "/etc/wireguard/wg0.conf"
 
 [nftables]
 # Chemin vers le fichier de configuration nftables qui sera générée à chaque exécution de wg-ldap (doit être accessible en lecture/écriture par l'utilisateur exécutant wg-ldap)
@@ -173,6 +144,9 @@ host = "10.8.0.1"
 port = 80
 # Addresse IP publique ou hostname du serveur VPN, utilisé dans les configs clients générées
 external_vpn_ip = "1.1.1.1"
+# Fichier d'état pour savoir quelles IP ont été attribuées
+state_file = "/var/lib/wg-ldap/ips.json"
+
 
 
 # Routage par groupes
