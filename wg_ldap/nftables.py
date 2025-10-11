@@ -89,7 +89,7 @@ def render_nftables(cfg: AppConfig, peers: Iterable[Peer]) -> str:
     
     for peer in peers:
         routes = []
-        target_dns = cfg.per_group_dns.get("*", None)  # Default DNS if any
+        target_dns_list = cfg.per_group_dns.get("*", None)  # Default DNS if any
         target_dns_index = -1
         
         # Add group routes and find DNS server
@@ -97,7 +97,7 @@ def render_nftables(cfg: AppConfig, peers: Iterable[Peer]) -> str:
             routes.extend(cfg.per_group_routes.get(g, []))
             # Get DNS server for this group (last matching wins)
             if g in cfg.per_group_dns and (index := list(cfg.per_group_dns).index(g)) >= target_dns_index:
-                target_dns = cfg.per_group_dns[g]
+                target_dns_list = cfg.per_group_dns[g]
                 target_dns_index = index
 
         routes = _unique(routes)
@@ -107,7 +107,9 @@ def render_nftables(cfg: AppConfig, peers: Iterable[Peer]) -> str:
             )
         
         # DNS redirection: use the last matching DNS server
-        if target_dns:
+        # If multiple DNS servers are available for the group used, use group[ip % len] to distribute
+        if target_dns_list:
+            target_dns = target_dns_list[ int(peer.address) % len(target_dns_list)]
             # DNAT for UDP DNS queries
             per_client_dns_lines.append(
                 f"add rule ip nat prerouting ip saddr {peer.address} ip daddr {wg_address} udp dport 53 dnat to {target_dns}"

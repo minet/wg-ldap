@@ -39,20 +39,8 @@ class NFTablesConfig(BaseModel):
     base_content: str | None = None
     input_allow_tcp: list[int] = Field(default_factory=lambda: [22])
     input_allow_udp: list[int] = Field(default_factory=lambda: [51825])
-    forward_policies: list[dict] = Field(
-        default_factory=lambda: [
-            {"iif": "wg0", "oif": "eth0", "action": "accept"},
-            {"iif": "wg0", "oif": "eth1", "action": "accept"},
-            {"iif": "wg0", "oif": "eth2", "action": "accept"},
-        ]
-    )
-    nat_postrouting: list[dict] = Field(
-        default_factory=lambda: [
-            {"oif": "eth0", "saddr": "10.8.0.0/16", "action": "masquerade"},
-            {"oif": "eth1", "saddr": "10.8.0.0/16", "action": "masquerade"},
-            {"oif": "eth2", "saddr": "10.8.0.0/16", "action": "masquerade"},
-        ]
-    )
+    forward_policies: list[dict] = Field(default_factory=list)
+    nat_postrouting: list[dict] = Field(default_factory=list)
 
 
 class WebConfig(BaseModel):
@@ -70,7 +58,7 @@ class AppConfig(BaseModel):
     vpn_cidr: str = "10.8.0.0/16"
     state_file: str = "/var/lib/wg-ldap/state.json"
     per_group_routes: dict[str, list[str]] = Field(default_factory=dict)
-    per_group_dns: dict[str, str] = Field(default_factory=dict)
+    per_group_dns: dict[str, list[str]] = Field(default_factory=dict)
 
     def vpn_network(self) -> IPv4Network:
         return IPv4Network(self.vpn_cidr)
@@ -197,9 +185,10 @@ external_vpn_ip = "1.1.1.1"
 [per_group_dns]
 # Typiquement le DN complet du groupe LDAP comme clé, et l'adresse IP du serveur DNS comme valeur
 # Les requêtes DNS arrivant sur 10.8.0.1 (wireguard.address) seront redirigées vers le DNS du dernier groupe qui match
-"*" = "8.8.8.8"
-"cn=cluster-dev,ou=groups,dc=minet,dc=net" = "192.168.103.55"
-"cn=cluster-prod,ou=groups,dc=minet,dc=net" = "192.168.102.55"
+# Si plusieurs serveurs DNS sont disponibles pour le groupe utilisé, utiliser group[ip % len] pour répartir
+"*" = ["8.8.8.8"]
+"cn=cluster-dev,ou=groups,dc=minet,dc=net" = ["192.168.103.54", "192.168.103.55"]
+"cn=cluster-prod,ou=groups,dc=minet,dc=net" = ["192.168.102.54", "192.168.102.55"]
 """
 
 

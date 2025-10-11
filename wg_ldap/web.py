@@ -75,10 +75,13 @@ class LookupHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
+
+        wireguard_ip = self.config.wireguard.address.split('/')[0]
         content = content.replace("{{WG_LDAP_SERVER_HOST}}", str(self.config.web.external_vpn_ip)) \
                          .replace("{{WG_LDAP_SERVER_PORT}}", str(self.config.wireguard.port)) \
                          .replace("{{WG_LDAP_PUBKEY}}", pubkey(self.config)) \
-                         .replace("{{WG_LDAP_ROUTES}}", routes(self.config))
+                         .replace("{{WG_LDAP_ROUTES}}", routes(self.config)) \
+                         .replace("{{WG_LDAP_DNS}}", wireguard_ip)
         self.wfile.write(content.encode("utf-8"))
         return
     

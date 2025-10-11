@@ -196,11 +196,6 @@
         <label for="username">Nom d'utilisateur</label>
         <input id="username" type="text" placeholder="ex: alice" />
 
-        <label style="margin-top: 8px"
-          ><input id="vlan102" type="checkbox" />J'ai la prod (DNS
-          <code>VLAN102</code>)</label
-        >
-
         <div class="row">
           <button id="lookup">Récupérer IP</button>
           <button id="download-conf" class="secondary" disabled>
@@ -376,10 +371,7 @@
         if (!lastFoundIP)
           return setResult("Aucune IP trouvée à inclure", "error");
         const priv = document.getElementById("private").value.trim();
-        const vlan = document.getElementById("vlan102").checked ? 102 : 103;
-        const dnsOctet = Math.random() < 0.5 ? 55 : 54;
-        const dns = `192.168.${vlan}.${dnsOctet}`;
-        const cfg = `[Interface]\nPrivateKey = ${priv}\nAddress = ${lastFoundIP}/32\nDNS = ${dns}\n\n[Peer]\nPublicKey = {{WG_LDAP_PUBKEY}}\nEndpoint = {{WG_LDAP_SERVER_HOST}}:{{WG_LDAP_SERVER_PORT}}\nAllowedIPs = {{WG_LDAP_ROUTES}}\nPersistentKeepalive = 25\n`;
+        const cfg = `[Interface]\nPrivateKey = ${priv}\nAddress = ${lastFoundIP}/32\nDNS = {{WG_LDAP_DNS}}\n\n[Peer]\nPublicKey = {{WG_LDAP_PUBKEY}}\nEndpoint = {{WG_LDAP_SERVER_HOST}}:{{WG_LDAP_SERVER_PORT}}\nAllowedIPs = {{WG_LDAP_ROUTES}}\nPersistentKeepalive = 25\n`;
         const blob = new Blob([cfg], {
           type: "text/plain;charset=utf-8",
         });
