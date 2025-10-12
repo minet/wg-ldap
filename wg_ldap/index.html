@@ -371,7 +371,7 @@
         if (!lastFoundIP)
           return setResult("Aucune IP trouvée à inclure", "error");
         const priv = document.getElementById("private").value.trim();
-        const cfg = `[Interface]\nPrivateKey = ${priv}\nAddress = ${lastFoundIP}/32\nDNS = {{WG_LDAP_DNS}}\n\n[Peer]\nPublicKey = {{WG_LDAP_PUBKEY}}\nEndpoint = {{WG_LDAP_SERVER_HOST}}:{{WG_LDAP_SERVER_PORT}}\nAllowedIPs = {{WG_LDAP_ROUTES}}\nPersistentKeepalive = 25\n`;
+        const cfg = `[Interface]\nPrivateKey = ${priv}\nAddress = ${lastFoundIP}/32\nDNS = {{WG_LDAP_DNS}}, {{WG_LDAP_SEARCH_DOMAIN}}\n\n[Peer]\nPublicKey = {{WG_LDAP_PUBKEY}}\nEndpoint = {{WG_LDAP_SERVER_HOST}}:{{WG_LDAP_SERVER_PORT}}\nAllowedIPs = {{WG_LDAP_ROUTES}}\nPersistentKeepalive = 25\n`;
         const blob = new Blob([cfg], {
           type: "text/plain;charset=utf-8",
         });
