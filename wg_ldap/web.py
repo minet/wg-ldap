@@ -82,7 +82,7 @@ class LookupHandler(BaseHTTPRequestHandler):
                          .replace("{{WG_LDAP_PUBKEY}}", pubkey(self.cfg)) \
                          .replace("{{WG_LDAP_ROUTES}}", routes(self.cfg)) \
                          .replace("{{WG_LDAP_DNS}}", wireguard_ip) \
-                         .replace("{{WG_LDAP_SEARCH_DOMAIN}}", self.cfg.web.dns_search_domain)
+                         .replace("{{WG_LDAP_SEARCH_DOMAIN}}", ", ".join(self.cfg.web.dns_search_domains))
         self.wfile.write(content.encode("utf-8"))
         return
     

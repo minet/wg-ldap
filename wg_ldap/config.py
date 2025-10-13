@@ -47,7 +47,7 @@ class NFTablesConfig(BaseModel):
 class WebConfig(BaseModel):
     host: str = "127.0.0.1"
     external_vpn_ip: str = "1.1.1.1"
-    dns_search_domain: str = "lan"
+    dns_search_domains: list[str] = Field(default_factory=lambda: ["lan"])
     port: int = 8080
     state_file: str = "/var/lib/wg-ldap/state.json"
 
@@ -145,8 +145,8 @@ host = "10.8.0.1"
 port = 80
 # Addresse IP publique ou hostname du serveur VPN, utilisé dans les configs clients générées
 external_vpn_ip = "1.1.1.1"
-# Domaine de recherche DNS à fournir aux clients VPN (ex: "lan" pour "machine.lan")
-dns_search_domain = "lan"
+# Domaines de recherche DNS à fournir aux clients VPN (ex: "lan" pour "machine.lan")
+dns_search_domains = ["lan"]
 # Fichier d'état pour savoir quelles IP ont été attribuées
 state_file = "/var/lib/wg-ldap/ips.json"
 
