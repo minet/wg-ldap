@@ -38,6 +38,10 @@
         grid-template-columns: 1fr 480px;
         gap: 20px;
       }
+
+      .large {
+        grid-column: 1 / -1;
+      }
       .card {
         background: linear-gradient(
           180deg,
@@ -137,6 +141,9 @@
         font-size: 12px;
         text-align: center;
       }
+      a {
+        color: var(--accent);
+      }
 
       @media (max-width: 1080px) {
         .wrap {
@@ -148,7 +155,7 @@
   <body>
     <div class="wrap">
       <div class="card">
-        <h1>Génération des clés</h1>
+        <h1>1. Génération des clés</h1>
         <p class="lead">
           Génère une paire privée/publique localement dans votre navigateur. La
           clé privée ne quitte pas votre machine.
@@ -167,27 +174,47 @@
           minlength="44"
           id="private"
           placeholder="Collez la clé privée (Base64) ou cliquez sur Générer"
+          name="wg_private_key"
+          autocomplete="new-password"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          data-bwignore="true"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-dashlane="disabled"
         />
 
         <label for="public"
           >Clé publique (Base64) [ <code>wg pubkey</code> ]</label
         >
 
-        <input
-          id="public"
-          type="text"
-          readonly
-          value=""
-          placeholder="Générez une clé..."
-        />
+        <div style="display: flex; gap: 8px; align-items: center">
+          <input
+            id="public"
+            type="text"
+            readonly
+            value=""
+            placeholder="Générez une clé..."
+            style="flex: 1"
+          />
+          <button
+            id="copy-public"
+            class="secondary"
+            style="padding: 10px 16px; flex: 0 0 auto; width: auto; opacity: 1"
+            disabled
+          >
+            Copy
+          </button>
+        </div>
 
         <div class="row">
-          <button id="gen">Générer</button>
+          <button id="gen">Générer une clé privée</button>
         </div>
       </div>
 
       <div class="card">
-        <h1>IP & Configuration</h1>
+        <h1>2. IP & Configuration</h1>
         <p class="lead">
           Entrez le nom d'utilisateur pour récupérer l'IP attribuée 5 minutes
           après avoir renseigné FusionDirectory.
@@ -198,7 +225,7 @@
 
         <div class="row">
           <button id="lookup">Récupérer IP</button>
-          <button id="download-conf" class="secondary" disabled>
+          <button id="download-conf" class="" disabled>
             Télécharger minetvpn.conf
           </button>
         </div>
@@ -206,6 +233,47 @@
         <div id="lookup-result" class="result muted">
           Aucune requête effectuée.
         </div>
+
+        <p class="small" style="margin-top: 12px">
+          Après avoir cliqué sur "Récupérer IP", si l'utilisateur existe et a
+          une IP attribuée, elle s'affichera ci-dessus. Vous pourrez alors
+          télécharger le fichier de configuration WireGuard et l'ajouter dans
+          votre client VPN.
+        </p>
+      </div>
+
+      <div class="card large">
+        <h1>3. Configuration DNS</h1>
+        <p class="lead">
+          Si le DNS ne marche pas automatiquement (<a
+            href="https://gitlabint.priv.minet.net/"
+            target="_blank"
+            >par exemple GitLab Interne</a
+          >), vous pouvez utiliser la commande suivante.
+        </p>
+
+        <label for="dns-command">Commande à exécuter</label>
+        <div style="display: flex; gap: 8px; align-items: center">
+          <input
+            id="dns-command"
+            type="text"
+            readonly
+            value='sudo nmcli connection modify "minetvpn" ipv4.dns "{{WG_LDAP_DNS}}" ipv4.dns-search "{{WG_LDAP_SEARCH_DOMAIN}}" ipv4.ignore-auto-dns yes'
+            style="flex: 1"
+          />
+          <button
+            id="copy-dns"
+            class="secondary"
+            style="padding: 10px 16px; flex: 0 0 auto; width: auto; opacity: 1"
+          >
+            Copy
+          </button>
+        </div>
+
+        <p class="small" style="margin-top: 12px">
+          Cette commande configure les serveurs DNS et le domaine de recherche
+          pour votre connexion VPN via NetworkManager (nmcli).
+        </p>
       </div>
 
       <footer class="card small">
@@ -252,6 +320,43 @@
         el.textContent = msg;
       }
 
+      /* Load private key from sessionStorage on page load */
+      function loadPrivateKey() {
+        const stored = sessionStorage.getItem("wg_private_key");
+        if (stored) {
+          setText("private", stored);
+          // Trigger input event to compute public key
+          document.getElementById("private").dispatchEvent(new Event("input"));
+        }
+      }
+
+      /* Save private key to sessionStorage (survives page reload, but not closing tab) */
+      function savePrivateKey(key) {
+        if (key) {
+          sessionStorage.setItem("wg_private_key", key);
+        } else {
+          sessionStorage.removeItem("wg_private_key");
+        }
+      }
+
+      /* Toggle generate button visibility */
+      function updateGenerateButton() {
+        const priv = document.getElementById("private").value.trim();
+        const genBtn = document.getElementById("gen");
+        if (priv) {
+          genBtn.disabled = true;
+        } else {
+          genBtn.disabled = false;
+        }
+      }
+
+      /* Enable/disable copy button */
+      function updateCopyButton() {
+        const pub = document.getElementById("public").value.trim();
+        const copyBtn = document.getElementById("copy-public");
+        copyBtn.disabled = !pub;
+      }
+
       /* Key generation using tweetnacl (Curve25519 via box.keyPair) */
       document.getElementById("gen").addEventListener("click", () => {
         try {
@@ -261,7 +366,10 @@
           const priv64 = u8ToBase64(kp.secretKey);
           setText("public", pub64);
           setText("private", priv64);
+          savePrivateKey(priv64);
           setResult("Clés générées localement.", "ok");
+          updateGenerateButton();
+          updateCopyButton();
           try {
             enableDownloadIfReady();
           } catch (_) {}
@@ -273,8 +381,12 @@
       // When user types/pastes a private key, attempt to derive public key in real-time
       document.getElementById("private").addEventListener("input", () => {
         const val = document.getElementById("private").value.trim();
+        savePrivateKey(val);
+        updateGenerateButton();
+
         if (!val) {
           document.getElementById("public").value = "";
+          updateCopyButton();
           try {
             enableDownloadIfReady();
           } catch (_) {}
@@ -284,6 +396,7 @@
         if (!u8 || u8.length !== 32) {
           // not a valid 32-byte base64 key
           document.getElementById("public").value = "";
+          updateCopyButton();
           try {
             enableDownloadIfReady();
           } catch (_) {}
@@ -293,13 +406,33 @@
           const pub = nacl.scalarMult.base(u8);
           const pub64 = u8ToBase64(pub);
           document.getElementById("public").value = pub64;
+          updateCopyButton();
         } catch (e) {
           document.getElementById("public").value = "";
+          updateCopyButton();
         }
         try {
           enableDownloadIfReady();
         } catch (_) {}
       });
+
+      /* Copy public key to clipboard */
+      document
+        .getElementById("copy-public")
+        .addEventListener("click", async () => {
+          const pub = document.getElementById("public").value;
+          try {
+            await navigator.clipboard.writeText(pub);
+            const btn = document.getElementById("copy-public");
+            const originalText = btn.textContent;
+            btn.textContent = "✓ Copié";
+            setTimeout(() => {
+              btn.textContent = originalText;
+            }, 2000);
+          } catch (e) {
+            setResult("Erreur copie : " + e.message, "error");
+          }
+        });
 
       /* Lookup logic */
       async function doLookup() {
@@ -313,6 +446,8 @@
             const txt = (await resp.text()).trim();
             lastFoundIP = txt;
             setResult("IP : " + txt, "ok");
+            // Hide lookup button after successful IP retrieval
+            document.getElementById("lookup").disabled = true;
             try {
               enableDownloadIfReady();
             } catch (_) {}
@@ -385,6 +520,29 @@
         URL.revokeObjectURL(url);
         setResult("Fichier minetvpn.conf généré et téléchargé.", "ok");
       });
+
+      /* Copy DNS command to clipboard */
+      document
+        .getElementById("copy-dns")
+        .addEventListener("click", async () => {
+          const dnsCmd = document.getElementById("dns-command").value;
+          try {
+            await navigator.clipboard.writeText(dnsCmd);
+            const btn = document.getElementById("copy-dns");
+            const originalText = btn.textContent;
+            btn.textContent = "✓ Copié";
+            setTimeout(() => {
+              btn.textContent = originalText;
+            }, 2000);
+          } catch (e) {
+            setResult("Erreur copie : " + e.message, "error");
+          }
+        });
+
+      // Initialize on page load
+      loadPrivateKey();
+      updateGenerateButton();
+      updateCopyButton();
       enableDownloadIfReady();
     </script>
   </body>
