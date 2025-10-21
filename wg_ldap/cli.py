@@ -84,9 +84,13 @@ def _write_if_changed(path: str, content: str) -> bool:
     atomic_write(path, content)
     return True
 
-def cmd_sync(args: argparse.Namespace) -> int:
+def cmd_sync(args: argparse.Namespace, cfg: AppConfig | None = None) -> int:
     logging.debug("Starting sync with config: %s", args.config)
-    cfg, ldap_client, ipam = _load_all(Path(args.config).expanduser())
+    if cfg is None:
+        cfg, ldap_client, ipam = _load_all(Path(args.config).expanduser())
+    else:
+        ldap_client = LDAPClient(cfg.ldap)
+        ipam = IPAM(cfg.web.state_file, cfg.wireguard.address)
     logging.debug(
         "Effective paths: wireguard.config_output_path=%s web.state_file=%s nftables.output_path=%s",
         cfg.wireguard.config_output_path,
@@ -153,6 +157,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
         print(wg_conf)
         print("\n# --- nftables config ---")
         print(nft_conf)
+        print("# --- end of configs ---")
 
     return 0
 

@@ -5,6 +5,7 @@ from typing import Iterable, List
 
 import ldap
 import ldap.ldapobject
+import ldap.filter
 
 from .config import LDAPConfig
 from .ipam import LDAPUser
@@ -25,6 +26,23 @@ class LDAPClient:
         log.debug("Binding as %s", self.cfg.bind_dn)
         conn.simple_bind_s(self.cfg.bind_dn, self.cfg.password)
         return conn
+
+    def does_exist(self, uid: str) -> bool:
+        log.debug("Checking existence of user %s", uid)
+        conn = self._connect()
+        try:
+            search_filter = f"(&{self.cfg.user_filter}(uid={ldap.filter.escape_filter_chars(uid)}))"
+            results = conn.search_s(
+                self.cfg.base_dn,
+                ldap.SCOPE_SUBTREE,  # type: ignore[attr-defined]
+                search_filter,
+                ["uid"],
+            )
+        finally:
+            conn.unbind_s()
+        exists = bool(results)
+        log.debug("User %s existence: %s", uid, exists)
+        return exists
 
     def get_users(self, limit: int | None = None) -> List[LDAPUser]:
         log.debug(

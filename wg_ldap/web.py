@@ -6,16 +6,26 @@ import codecs
 import logging
 import json
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+import time
 from urllib.parse import unquote
 from pathlib import Path
 from typing import Optional
 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives import serialization
+
 from .config import load_config, AppConfig
+from .ldap_sync import LDAPClient
+from .cli import cmd_sync
+
 
 log = logging.getLogger(__name__)
 
+_next_time_ldap_sync = time.time()
+# If the user was not found, we check less often to reduce load
+MIN_CHECK_INTERVAL_NOT_FOUND = 120  # seconds
+# If the user was found, we check more often to allow people to find their IP quickly
+MIN_CHECK_INTERVAL_FOUND = 10  # seconds
 
 def pubkey(cfg: AppConfig) -> str:
     if hasattr(pubkey, "_cached"):
@@ -86,6 +96,53 @@ class LookupHandler(BaseHTTPRequestHandler):
         self.wfile.write(content.encode("utf-8"))
         return
     
+    def _trigger_server_reload(self) -> None:
+        args = argparse.Namespace(config="/etc/wg-ldap/config.toml", apply=True, print=False)
+        cmd_sync(args, self.cfg)
+
+
+    def _get_user_ip(self, username: str) -> Optional[str]:
+        """
+        Look up the IP address for a given username from the state file.
+        
+        Args:
+            username: The username to look up
+            
+        Returns:
+            The IP address if found, None otherwise
+            
+        Raises:
+            FileNotFoundError: If the state file does not exist
+            json.JSONDecodeError: If the state file is not valid JSON
+            Exception: For other file reading errors
+        """
+        global _next_time_ldap_sync
+        assert self.cfg is not None
+        assert MIN_CHECK_INTERVAL_FOUND > 1 and MIN_CHECK_INTERVAL_NOT_FOUND > 1, "Check intervals must be greater than 1 second"
+        state_path = Path(self.cfg.web.state_file)
+        if not state_path.exists():
+            raise FileNotFoundError(f"State file not found: {state_path}")
+        
+        data = json.loads(state_path.read_text(encoding="utf-8"))
+        result =  data.get(username)
+        if result is not None:
+            return result
+        
+        current_time = time.time()
+        if current_time < _next_time_ldap_sync:
+            return None
+        
+        log.info("User %s not found in state file, scheduling LDAP sync", username)
+        ldap_client = LDAPClient(self.cfg.ldap)
+        if not ldap_client.does_exist(username):
+            _next_time_ldap_sync = current_time + MIN_CHECK_INTERVAL_NOT_FOUND
+            return None
+        
+        _next_time_ldap_sync = current_time + MIN_CHECK_INTERVAL_FOUND
+        self._trigger_server_reload()
+
+        return self._get_user_ip(username) # Retry after triggering reload
+        
 
     def do_GET(self) -> None:
         assert self.cfg is not None
@@ -98,20 +155,25 @@ class LookupHandler(BaseHTTPRequestHandler):
         if not username:
             self._serve_index()
             return
-        state_path = Path(self.cfg.web.state_file)
-        if not state_path.exists():
+        
+        try:
+            ip = self._get_user_ip(username)
+        except FileNotFoundError:
             self.send_error(500, "State file missing")
             return
-        try:
-            data = json.loads(state_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            log.exception("Failed to parse state file: %s", e)
+            self.send_error(500, "Failed to read state file")
+            return
         except Exception as e:
             log.exception("Failed to read state file: %s", e)
             self.send_error(500, "Failed to read state file")
             return
-        ip = data.get(username)
+        
         if ip is None:
             self.send_error(404, "Not found")
             return
+        
         # return only the IP
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
