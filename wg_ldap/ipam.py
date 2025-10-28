@@ -4,8 +4,12 @@ import json
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
-from typing import Dict, Generator, Iterable, List, Tuple
+from typing import Dict, Generator, Iterable, List
 import logging
+import urllib.request
+import urllib.error
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -29,7 +33,7 @@ class IPAM:
         self.network: IPv4Network = IPv4Network(vpn_address, strict=False)
         self.state: Dict[str, str] = {}
         self._load()
-        logging.getLogger(__name__).debug(
+        log.debug(
             "IPAM initialized: network=%s state_entries=%d", self.network, len(self.state)
         )
 
@@ -56,7 +60,27 @@ class IPAM:
                 continue
             yield ip
 
-    def assign_peers(self, users: Iterable[LDAPUser], persist: bool = True) -> List[Peer]:
+    def load_state_from_master(self, master_address: str, master_port: int, preshared_key: str) -> None:
+        url = f"http://{master_address}:{master_port}/iplist/{preshared_key}"
+        log.debug("Loading IPAM state from master: %s", url)
+
+        try:
+            with urllib.request.urlopen(url) as response:
+                if response.status == 200:
+                    data = response.read().decode('utf-8')
+                    self.state = json.loads(data)
+                    log.info("Successfully loaded IPAM state from master (entries=%d)", len(self.state))
+                else:
+                    log.warning("Failed to load state from master: HTTP %d", response.status)
+        except urllib.error.URLError as e:
+            log.error("Failed to connect to master: %s", e)
+        except json.JSONDecodeError as e:
+            log.error("Invalid JSON response from master: %s", e)
+        except Exception as e:
+            log.error("Unexpected error loading state from master: %s", e)
+        
+
+    def assign_peers(self, users: Iterable[LDAPUser], persist: bool = True, assign_ips: bool = True) -> List[Peer]:
         # Keep existing allocations
         allocated: Dict[str, IPv4Address] = {
             uid: IPv4Address(addr) for uid, addr in self.state.items()
@@ -76,10 +100,15 @@ class IPAM:
         addresses = next_free()
         for u in users:
             addr = allocated.get(u.uid)
-            if addr is None:
+            if addr is None and assign_ips:
                 addr = next(addresses)
                 allocated[u.uid] = addr
-                logging.getLogger(__name__).debug("Allocated %s -> %s", u.uid, addr)
+                log.debug("Allocated %s -> %s", u.uid, addr)
+            elif addr is None and not assign_ips:
+                log.warning("No IP was assigned to %s, this node is not configured to give out IP addresses.", u.uid)
+                continue
+            else:
+                assert addr is not None, "liteapp is dumb" # To make the type checker happy ig
             peers.append(Peer(uid=u.uid, public_key=u.public_key, address=addr, groups=u.groups))
 
         if persist:

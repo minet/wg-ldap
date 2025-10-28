@@ -5,7 +5,7 @@ from ipaddress import IPv4Network
 from pathlib import Path
 import logging
 log = logging.getLogger(__name__)
-from typing import Iterable, Mapping
+from typing import Iterable, Literal, Mapping
 
 try:  # Python 3.11+
     import tomllib  # type: ignore[no-redef]
@@ -51,6 +51,10 @@ class WebConfig(BaseModel):
     port: int = 8080
     state_file: str = "/var/lib/wg-ldap/state.json"
 
+class MultiNodesConfig(BaseModel):
+    master_node: str | Literal[True] = True
+    preshared_key: str | None = None
+
 
 
 class AppConfig(BaseModel):
@@ -58,6 +62,7 @@ class AppConfig(BaseModel):
     wireguard: WireGuardConfig = Field(default_factory=WireGuardConfig)
     nftables: NFTablesConfig = Field(default_factory=NFTablesConfig)
     web: WebConfig = Field(default_factory=WebConfig)
+    multi_nodes: MultiNodesConfig = Field(default_factory=MultiNodesConfig)
     per_group_routes: dict[str, list[str]] = Field(default_factory=dict)
     per_group_dns: dict[str, list[str]] = Field(default_factory=dict)
 
@@ -149,6 +154,12 @@ external_vpn_ip = "1.1.1.1"
 dns_search_domains = ["lan"]
 # Fichier d'état pour savoir quelles IP ont été attribuées
 state_file = "/var/lib/wg-ldap/ips.json"
+
+[multi_nodes]
+# Configuration pour un déploiement multi-nœuds (optionnel)
+master_node = true # Remplacer par l'adresse IP ou le hostname du nœud maître
+# Preshared key partagée entre les nœuds pour sécuriser la communication
+preshared_key = "DEMANDERLAPRESHAREDKEYAQUELQUUN"
 
 
 

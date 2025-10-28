@@ -104,7 +104,10 @@ def cmd_sync(args: argparse.Namespace, cfg: AppConfig | None = None) -> int:
 
     # Assign and persist IP addresses
     logging.debug("Assigning IPs to %d users", len(users))
-    peers = ipam.assign_peers(users)
+    if cfg.multi_nodes.master_node is not True:
+        assert cfg.multi_nodes.preshared_key, "The preshared key must be specified in a multi-node setup. If you only have one node, set master_node to True."
+        ipam.load_state_from_master(cfg.multi_nodes.master_node, cfg.web.port, cfg.multi_nodes.preshared_key)
+    peers = ipam.assign_peers(users, assign_ips=(cfg.multi_nodes.master_node is True))
     logging.debug("Assigned %d peers; persisting state", len(peers))
     ipam.save()
 
@@ -168,7 +171,10 @@ def cmd_generate(args: argparse.Namespace) -> int:
     logging.debug("Querying LDAP users…")
     users = ldap_client.get_users()
     logging.debug("Assigning IPs (no persist)")
-    peers = ipam.assign_peers(users, persist=False)
+    if cfg.multi_nodes.master_node is not True:
+        assert cfg.multi_nodes.preshared_key, "The preshared key must be specified in a multi-node setup. If you only have one node, set master_node to True."
+        ipam.load_state_from_master(cfg.multi_nodes.master_node, cfg.web.port, cfg.multi_nodes.preshared_key)
+    peers = ipam.assign_peers(users, persist=False, assign_ips=cfg.multi_nodes.master_node is True)
     logging.debug("Rendering WireGuard and nftables configs…")
     wg_conf = render_wireguard(cfg, peers)
     nft_conf = render_nftables(cfg, peers)

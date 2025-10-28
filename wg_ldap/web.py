@@ -101,48 +101,86 @@ class LookupHandler(BaseHTTPRequestHandler):
         cmd_sync(args, self.cfg)
 
 
-    def _get_user_ip(self, username: str) -> Optional[str]:
+    def _serve_user_ip(self, username: str) -> None:
         """
-        Look up the IP address for a given username from the state file.
+        Look up and serve the IP address for a given username from the state file.
         
         Args:
             username: The username to look up
-            
-        Returns:
-            The IP address if found, None otherwise
-            
-        Raises:
-            FileNotFoundError: If the state file does not exist
-            json.JSONDecodeError: If the state file is not valid JSON
-            Exception: For other file reading errors
         """
         global _next_time_ldap_sync
         assert self.cfg is not None
         assert MIN_CHECK_INTERVAL_FOUND > 1 and MIN_CHECK_INTERVAL_NOT_FOUND > 1, "Check intervals must be greater than 1 second"
+        
         state_path = Path(self.cfg.web.state_file)
         if not state_path.exists():
-            raise FileNotFoundError(f"State file not found: {state_path}")
+            self.send_error(500, "State file missing")
+            return
         
-        data = json.loads(state_path.read_text(encoding="utf-8"))
-        result =  data.get(username)
-        if result is not None:
-            return result
+        try:
+            data = json.loads(state_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            log.exception("Failed to parse state file: %s", e)
+            self.send_error(500, "Failed to read state file")
+            return
+        except Exception as e:
+            log.exception("Failed to read state file: %s", e)
+            self.send_error(500, "Failed to read state file")
+            return
+        
+        ip = data.get(username)
+        if ip is not None:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(ip.encode("utf-8"))
+            return
         
         current_time = time.time()
         if current_time < _next_time_ldap_sync:
-            return None
+            self.send_error(404, "Not found")
+            return
         
         log.info("User %s not found in state file, scheduling LDAP sync", username)
         ldap_client = LDAPClient(self.cfg.ldap)
         if not ldap_client.does_exist(username):
             _next_time_ldap_sync = current_time + MIN_CHECK_INTERVAL_NOT_FOUND
-            return None
+            self.send_error(404, "Not found")
+            return
         
         _next_time_ldap_sync = current_time + MIN_CHECK_INTERVAL_FOUND
         self._trigger_server_reload()
-
-        return self._get_user_ip(username) # Retry after triggering reload
         
+        # Retry after triggering reload
+        self._serve_user_ip(username)
+
+    def _serve_ip_list(self):
+        assert self.cfg is not None
+        state_path = Path(self.cfg.web.state_file)
+        if not state_path.exists():
+            self.send_error(500, "State file missing")
+            return
+        
+        try:
+            data = json.loads(state_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            log.exception("Failed to parse state file: %s", e)
+            self.send_error(500, "Failed to read state file")
+            return
+        except Exception as e:
+            log.exception("Failed to read state file: %s", e)
+            self.send_error(500, "Failed to read state file")
+            return
+        
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.end_headers()
+
+        data_json = json.dumps(data)
+        self.wfile.write(data_json.encode())
+
+        
+
 
     def do_GET(self) -> None:
         assert self.cfg is not None
@@ -156,29 +194,17 @@ class LookupHandler(BaseHTTPRequestHandler):
             self._serve_index()
             return
         
-        try:
-            ip = self._get_user_ip(username)
-        except FileNotFoundError:
-            self.send_error(500, "State file missing")
-            return
-        except json.JSONDecodeError as e:
-            log.exception("Failed to parse state file: %s", e)
-            self.send_error(500, "Failed to read state file")
-            return
-        except Exception as e:
-            log.exception("Failed to read state file: %s", e)
-            self.send_error(500, "Failed to read state file")
+        if "/" not in username:
+            self._serve_user_ip(username)
             return
         
-        if ip is None:
-            self.send_error(404, "Not found")
+        if path.startswith("/iplist/") and self.cfg.multi_nodes.preshared_key and path.endswith(self.cfg.multi_nodes.preshared_key):
+            self._serve_ip_list()
             return
         
-        # return only the IP
-        self.send_response(200)
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.end_headers()
-        self.wfile.write(ip.encode("utf-8"))
+        self.send_error(400, "Bad request")
+
+        
 
 
 def serve() -> None:
