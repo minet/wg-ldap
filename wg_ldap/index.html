@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
@@ -20,8 +20,15 @@
       body {
         height: 100%;
         margin: 0;
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-          Roboto, "Helvetica Neue", Arial;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          "Helvetica Neue",
+          Arial;
       }
       body {
         background: linear-gradient(180deg, #071028 0%, #071827 100%);
@@ -96,7 +103,10 @@
         cursor: pointer;
         font-weight: 600;
         opacity: 1;
-        transition: width 0.3s, flex 0.3s, opacity 0.3s;
+        transition:
+          width 0.3s,
+          flex 0.3s,
+          opacity 0.3s;
       }
       button.secondary {
         background: transparent;
@@ -464,7 +474,7 @@
             } catch (_) {}
             setResult(
               "Erreur serveur: " + resp.status + " " + resp.statusText,
-              "error"
+              "error",
             );
           }
         } catch (e) {
@@ -506,7 +516,7 @@
         if (!lastFoundIP)
           return setResult("Aucune IP trouvée à inclure", "error");
         const priv = document.getElementById("private").value.trim();
-        const cfg = `[Interface]\nPrivateKey = ${priv}\nAddress = ${lastFoundIP}/32\nDNS = {{WG_LDAP_DNS}}, {{WG_LDAP_SEARCH_DOMAIN}}\n\n[Peer]\nPublicKey = {{WG_LDAP_PUBKEY}}\nEndpoint = {{WG_LDAP_SERVER_HOST}}:{{WG_LDAP_SERVER_PORT}}\nAllowedIPs = {{WG_LDAP_ROUTES}}\nPersistentKeepalive = 25\n`;
+        const cfg = `[Interface]\nPrivateKey = ${priv}\nAddress = ${lastFoundIP}/32\nDNS = {{WG_LDAP_DNS}},192.168.102.55,192.168.102.54, {{WG_LDAP_SEARCH_DOMAIN}}\n\n[Peer]\nPublicKey = {{WG_LDAP_PUBKEY}}\nEndpoint = {{WG_LDAP_SERVER_HOST}}:{{WG_LDAP_SERVER_PORT}}\nAllowedIPs = {{WG_LDAP_ROUTES}}\nPersistentKeepalive = 25\n`;
         const blob = new Blob([cfg], {
           type: "text/plain;charset=utf-8",
         });
