@@ -268,7 +268,7 @@
             id="dns-command"
             type="text"
             readonly
-            value='sudo nmcli connection modify "minetvpn" ipv4.dns "{{WG_LDAP_DNS}}" ipv4.dns-search "{{WG_LDAP_SEARCH_DOMAIN}}" ipv4.ignore-auto-dns yes'
+            value=""
             style="flex: 1"
           />
           <button
@@ -491,6 +491,21 @@
         }
       });
 
+      // Server config fetched from /config at load
+      let serverConfig = null;
+
+      async function loadServerConfig() {
+        try {
+          const resp = await fetch("/config", { cache: "no-store" });
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          serverConfig = await resp.json();
+          const dnsCmd = `sudo nmcli connection modify "minetvpn" ipv4.dns "${serverConfig.dns}" ipv4.dns-search "${serverConfig.search_domain}" ipv4.ignore-auto-dns yes`;
+          document.getElementById("dns-command").value = dnsCmd;
+        } catch (e) {
+          console.error("Failed to load server config:", e);
+        }
+      }
+
       // Keep last-found IP for download
       let lastFoundIP = null;
 
@@ -515,8 +530,10 @@
       document.getElementById("download-conf").addEventListener("click", () => {
         if (!lastFoundIP)
           return setResult("Aucune IP trouvée à inclure", "error");
+        if (!serverConfig)
+          return setResult("Configuration serveur non disponible", "error");
         const priv = document.getElementById("private").value.trim();
-        const cfg = `[Interface]\nPrivateKey = ${priv}\nAddress = ${lastFoundIP}/32\nDNS = {{WG_LDAP_DNS}},192.168.102.55,192.168.102.54, {{WG_LDAP_SEARCH_DOMAIN}}\n\n[Peer]\nPublicKey = {{WG_LDAP_PUBKEY}}\nEndpoint = {{WG_LDAP_SERVER_HOST}}:{{WG_LDAP_SERVER_PORT}}\nAllowedIPs = {{WG_LDAP_ROUTES}}\nPersistentKeepalive = 25\n`;
+        const cfg = `[Interface]\nPrivateKey = ${priv}\nAddress = ${lastFoundIP}/32\nDNS = ${serverConfig.dns}, ${serverConfig.search_domain}\n\n[Peer]\nPublicKey = ${serverConfig.pubkey}\nEndpoint = ${serverConfig.server_host}:${serverConfig.server_port}\nAllowedIPs = ${serverConfig.routes}\nPersistentKeepalive = 25\n`;
         const blob = new Blob([cfg], {
           type: "text/plain;charset=utf-8",
         });
@@ -550,6 +567,7 @@
         });
 
       // Initialize on page load
+      loadServerConfig();
       loadPrivateKey();
       updateGenerateButton();
       updateCopyButton();

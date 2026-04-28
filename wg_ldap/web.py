@@ -71,13 +71,12 @@ class LookupHandler(BaseHTTPRequestHandler):
 
     def _serve_index(self) -> None:
         assert self.cfg is not None
-        # index.html is rigth next to this script
         index_path = Path(__file__).parent / "index.html"
         if not index_path.exists():
             self.send_error(500, "Index file missing")
             return
         try:
-            content = index_path.read_text(encoding="utf-8")
+            content = index_path.read_bytes()
         except Exception as e:
             log.exception("Failed to read index file: %s", e)
             self.send_error(500, "Failed to read index file")
@@ -85,16 +84,23 @@ class LookupHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
+        self.wfile.write(content)
 
+    def _serve_config(self) -> None:
+        assert self.cfg is not None
         wireguard_ip = self.cfg.wireguard.address.split('/')[0]
-        content = content.replace("{{WG_LDAP_SERVER_HOST}}", str(self.cfg.web.external_vpn_ip)) \
-                         .replace("{{WG_LDAP_SERVER_PORT}}", str(self.cfg.wireguard.port)) \
-                         .replace("{{WG_LDAP_PUBKEY}}", pubkey(self.cfg)) \
-                         .replace("{{WG_LDAP_ROUTES}}", routes(self.cfg)) \
-                         .replace("{{WG_LDAP_DNS}}", wireguard_ip) \
-                         .replace("{{WG_LDAP_SEARCH_DOMAIN}}", ", ".join(self.cfg.web.dns_search_domains))
-        self.wfile.write(content.encode("utf-8"))
-        return
+        payload = json.dumps({
+            "server_host": str(self.cfg.web.external_vpn_ip),
+            "server_port": self.cfg.wireguard.port,
+            "pubkey": pubkey(self.cfg),
+            "routes": routes(self.cfg),
+            "dns": wireguard_ip,
+            "search_domain": ", ".join(self.cfg.web.dns_search_domains),
+        })
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(payload.encode("utf-8"))
     
     def _trigger_server_reload(self) -> None:
         args = argparse.Namespace(config="/etc/wg-ldap/config.toml", apply=True, print=False)
@@ -184,25 +190,18 @@ class LookupHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         assert self.cfg is not None
-        # path expected: /valid_username
-        path = unquote(self.path)
-        if not path.startswith("/"):
-            self.send_error(400, "Bad request")
-            return
-        username = path.lstrip("/")
-        if not username:
-            self._serve_index()
-            return
-        
-        if "/" not in username:
-            self._serve_user_ip(username)
-            return
-        
-        if path.startswith("/iplist/") and self.cfg.multi_nodes.preshared_key and path.endswith(self.cfg.multi_nodes.preshared_key):
-            self._serve_ip_list()
-            return
-        
-        self.send_error(400, "Bad request")
+        segments = unquote(self.path).split("/")  # always ["", ...]
+        match segments:
+            case ["", ""]:
+                self._serve_index()
+            case ["", "config"]:
+                self._serve_config()
+            case ["", "iplist", key] if key and key == self.cfg.multi_nodes.preshared_key:
+                self._serve_ip_list()
+            case ["", username] if username:
+                self._serve_user_ip(username)
+            case _:
+                self.send_error(400, "Bad request")
 
         
 
