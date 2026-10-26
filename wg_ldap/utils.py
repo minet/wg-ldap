@@ -30,7 +30,9 @@ def run_cmd(cmd: Iterable[str], input: str | None = None, capture_output: bool =
             f"Command failed ({res.returncode}): {' '.join(cmd_list)}\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}"
         )
     if res.stdout:
-        log.debug("stdout: %s", res.stdout.strip())
+        # let's not log the stdout, it has the private key in it.
+        log.debug(f"stdout: {len(res.stdout)} bytes")
+        #log.debug("stdout: %s", res.stdout.strip())
     if res.stderr:
         log.debug("stderr: %s", res.stderr.strip())
     return res
